@@ -222,7 +222,7 @@ function Mount ()
     # Ignore DiskArb's mount options and possibly copy them
     while [[ "$1" = "-o" ]]
     do
-	# OPTIONS="${OPTIONS}${2}," # Copy options?
+	OPTIONS="${OPTIONS},${2}" # Copy options?
 	shift 2		# Forget the -o [option]
     done
 

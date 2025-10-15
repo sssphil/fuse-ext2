@@ -15,7 +15,7 @@
 static int do_getxattr(ext2_filsys e2fs, struct ext2_inode *node, const char *name,
 		char *value, size_t size);
 
-int op_getxattr(const char *path, const char *name, char *value, size_t size) {
+int op_getxattr(const char *path, const char *name, char *value, size_t size, uint32_t position) {
 	int rt;
 	ext2_ino_t ino;
 	struct ext2_inode inode;

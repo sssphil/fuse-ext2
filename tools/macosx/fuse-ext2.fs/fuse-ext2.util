@@ -46,6 +46,7 @@ FUSE_EXT2_MKE2FS=/sbin/mke2fs
 FUSE_EXT2_E2LABEL=/sbin/e2label
 FUSE_EXT2_WAIT=/bin/fuse-ext2.wait
 FUSE_EXT2_DAEMON=/bin/fuse-ext2.daemon
+FUSE_EXT2_BLKID=/sbin/blkid
 
 # Writes a line to the log file
 function Log () {
@@ -99,16 +100,46 @@ function GetFuseVersion ()
 	EOF
 }
 
+# make sure device arg is converted to /dev/disk* format (from /dev/disk*, UUID=*, or LABEL=* )
+function GetDevicePath ()
+{
+    INPUT="$1"
+
+    # If already /dev/disk*, return as-is
+    if [[ "${INPUT}" == /dev/* ]]; then
+        echo "${INPUT}"
+    fi
+
+    # if not /dev/disk*, resolve with blkid
+    if [[ "${INPUT}" == UUID=* || "${INPUT}" == LABEL=* ]]; then
+        LogDebug "[GetDevicePath] Resolving ${INPUT} using blkid"
+
+        # Populate blkid cache (without cache, blkid will not find the device)
+        for disk in $(diskutil list | grep -E '^\s+[0-9]+:.*Linux' | awk '{print "/dev/" $NF}'); do
+            LogDebug "[GetDevicePath] running: ${PFX}${FUSE_EXT2_BLKID} -c /etc/blkid.tab ${disk} >/dev/null 2>&1"
+            "${PFX}${FUSE_EXT2_BLKID}" -c /etc/blkid.tab "$disk" >/dev/null 2>&1
+        done
+
+        DEVICE_PATH=$("${PFX}${FUSE_EXT2_BLKID}" -c /etc/blkid.tab -o device -t "${INPUT}" 2>/dev/null)
+        if [[ -n "${DEVICE_PATH}" ]]; then
+            LogDebug "[GetDevicePath] blkid resolved ${INPUT} to ${DEVICE_PATH}"
+            echo "${DEVICE_PATH}"
+        else
+            LogDebug "[GetDevicePath] blkid could not resolve ${INPUT}"
+        fi
+    fi
+}
+
 # Make sure devices are of the form /dev/disk*
 function GetDevice ()
 {
-	echo "$1" | sed -e 's#^\([^/]\)#/dev/\1#' -e 's#/rdisk#/disk#'
+	GetDevicePath "$1" | sed -e 's#^\([^/]\)#/dev/\1#' -e 's#/rdisk#/disk#'
 }
 
 # Make sure devices are of the form /dev/rdisk*
 function GetRawDevice ()
 {
-	echo "$1" | sed -e 's#^\([^/]\)#/dev/\1#' -e 's#/disk#/rdisk#'
+	GetDevicePath "$1" | sed -e 's#^\([^/]\)#/dev/\1#' -e 's#/disk#/rdisk#'
 }
 
 # Get the absolute pathname for a file
